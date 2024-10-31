@@ -272,11 +272,20 @@ public class SpringApplication {
 		this.resourceLoader = resourceLoader;
 		Assert.notNull(primarySources, "PrimarySources must not be null");
 		this.primarySources = new LinkedHashSet<>(Arrays.asList(primarySources));
+		// 判断是否是web程序：
+		// jakarta.servlet.Servlet
+		// org.springframework.web.context.ConfigurableWebApplicationContext
+		// 须都在类加载器中存在，并设置到webEnvironment属性
 		this.properties.setWebApplicationType(WebApplicationType.deduceFromClasspath());
+		// 从 META-INF/spring.factories 中找K=ApplicationContextInitializer的类并实例化后
+		// 设置到SpringApplication的initializers属性。即找出所有的应用程序初始化器
 		this.bootstrapRegistryInitializers = new ArrayList<>(
 				getSpringFactoriesInstances(BootstrapRegistryInitializer.class));
 		setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
+		// 从spring.factories文件中找出key为ApplicationListener的类并实例化后
+		// 设置到SpringApplication的listeners属性。即找出所有的应用程序事件监听器
 		setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
+		// 找出main类
 		this.mainApplicationClass = deduceMainApplicationClass();
 	}
 
@@ -299,28 +308,43 @@ public class SpringApplication {
 	 * @return a running {@link ApplicationContext}
 	 */
 	public ConfigurableApplicationContext run(String... args) {
+		// 开始执行, 记录启动时间
 		Startup startup = Startup.create();
 		if (this.properties.isRegisterShutdownHook()) {
 			SpringApplication.shutdownHook.enableShutdownHookAddition();
 		}
 		DefaultBootstrapContext bootstrapContext = createBootstrapContext();
 		ConfigurableApplicationContext context = null;
+		// 设置java.awt.headless属性默认为true
 		configureHeadlessProperty();
+		// 获取SpringApplicationRunListeners，内部只有一个EventPublishingRunListener
+		// 创建所有 Spring 运行监听器并发布应用启动事件
 		SpringApplicationRunListeners listeners = getRunListeners(args);
+		// 会封装成SpringApplicationEvent事件然后广播出去给SpringApplication中的listeners所监听
+		// 这里接受ApplicationStartedEvent事件的listener会执行相应操作
 		listeners.starting(bootstrapContext, this.mainApplicationClass);
 		try {
+			// 初始化默认应用参数类
 			ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
+			// 根据运行监听器和应用参数来准备 Spring 环境
 			ConfigurableEnvironment environment = prepareEnvironment(listeners, bootstrapContext, applicationArguments);
+			// 打印banner
 			Banner printedBanner = printBanner(environment);
+			// 创建Spring容器，即创建应用上下文
 			context = createApplicationContext();
 			context.setApplicationStartup(this.applicationStartup);
+			// 准备应用上下文
 			prepareContext(bootstrapContext, context, environment, listeners, applicationArguments, printedBanner);
+			// 刷新应用上下文
 			refreshContext(context);
+			// 容器创建完成之后执行额外一些操作
 			afterRefresh(context, applicationArguments);
 			startup.started();
 			if (this.properties.isLogStartupInfo()) {
 				new StartupInfoLogger(this.mainApplicationClass, environment).logStarted(getApplicationLog(), startup);
 			}
+			// 广播出ApplicationReadyEvent事件给相应的监听器执行
+			// 发布应用上下文启动完成事件
 			listeners.started(context, startup.timeTakenToStarted());
 			callRunners(context, applicationArguments);
 		}
@@ -329,12 +353,16 @@ public class SpringApplication {
 		}
 		try {
 			if (context.isRunning()) {
+				// 发布应用上下文就绪事件
 				listeners.ready(context, startup.ready());
 			}
 		}
 		catch (Throwable ex) {
+			// 过程报错的话会执行一些异常操作
+			// 然后广播出ApplicationFailedEvent事件给相应的监听器执行
 			throw handleRunFailure(context, ex, null);
 		}
+		// 返回spring容器
 		return context;
 	}
 
