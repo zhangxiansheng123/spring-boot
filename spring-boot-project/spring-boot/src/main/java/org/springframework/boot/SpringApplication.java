@@ -333,9 +333,10 @@ public class SpringApplication {
 			// 创建Spring容器，即创建应用上下文
 			context = createApplicationContext();
 			context.setApplicationStartup(this.applicationStartup);
-			// 准备应用上下文
+			// 准备应用上下文 设置环境变量、应用参数、监听器,同时SpringBoot会扫描类路径中的所有类,查找符合条件的自动配置类
 			prepareContext(bootstrapContext, context, environment, listeners, applicationArguments, printedBanner);
-			// 刷新应用上下文
+			// 刷新应用上下文,完成Bean的初始化和依赖注入,在这一步SpringBoot会加在所有符合条件的自动配置类,并将它们注册到ApplicationContext中
+			// 这些自动配置类通常会使用@Conditional注解（如@ConditionalOnClass、@ConditionalOnMissingBean等）来决定是否应该应用某个配置。如果条件满足，自动配置类中的配置会被应用，相关的Bean会被创建并注册到ApplicationContext中
 			refreshContext(context);
 			// 容器创建完成之后执行额外一些操作
 			afterRefresh(context, applicationArguments);
